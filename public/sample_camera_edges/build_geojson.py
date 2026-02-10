@@ -16,6 +16,8 @@ EDGE_FLOW_COMPONENT_FILE = ROOT / "edge_flow_component_classes.csv"
 
 OUT_CAMERAS_GEOJSON = ROOT / "cameras.geojson"
 OUT_EDGES_GEOJSON = ROOT / "edges.geojson"
+OUT_NON_INTERNAL_EDGES_GEOJSON = ROOT / "edges_non_internal.geojson"
+OUT_JUNCTIONS_GEOJSON = ROOT / "junctions.geojson"
 OUT_CAMERA_EDGE_MAP = ROOT / "camera_edge_mapping.csv"
 
 
@@ -177,6 +179,8 @@ if cam_rows and "\ufeffcamera" in cam_rows[0] and "camera" not in cam_rows[0]:
 # Build features
 camera_features = []
 edge_features = []
+non_internal_edge_features = []
+junction_features = []
 
 for r in cam_rows:
     try:
@@ -236,11 +240,76 @@ for edge_id in sorted(all_component_edges):
         }
     )
 
+for edge_id in sorted(edges):
+    edge_el = edges.get(edge_id)
+    if edge_el is None or edge_el.get("function") == "internal":
+        continue
+    lines = edge_to_lines(edge_el)
+    if not lines:
+        continue
+    coords = lines[0]
+    props = {
+        "kind": "edge",
+        "edge_id": edge_id,
+        "from": edge_el.get("from"),
+        "to": edge_el.get("to"),
+        "type": edge_el.get("type"),
+        "priority": edge_el.get("priority"),
+        "numLanes": edge_el.get("numLanes"),
+        "speed": edge_el.get("speed"),
+        "length": edge_el.get("length"),
+        "function": edge_el.get("function"),
+        "in_flow_component": edge_id in flow_component_edges,
+    }
+    non_internal_edge_features.append(
+        {
+            "type": "Feature",
+            "geometry": {"type": "LineString", "coordinates": coords},
+            "properties": props,
+        }
+    )
+
+for edge_id in sorted(edges):
+    edge_el = edges.get(edge_id)
+    if edge_el is None or edge_el.get("function") != "internal":
+        continue
+    lines = edge_to_lines(edge_el)
+    if not lines or not lines[0]:
+        continue
+    coords = lines[0]
+    mid_idx = len(coords) // 2
+    mid = coords[mid_idx]
+    props = {
+        "kind": "junction",
+        "edge_id": edge_id,
+        "from": edge_el.get("from"),
+        "to": edge_el.get("to"),
+        "type": edge_el.get("type"),
+        "priority": edge_el.get("priority"),
+        "numLanes": edge_el.get("numLanes"),
+        "speed": edge_el.get("speed"),
+        "length": edge_el.get("length"),
+        "function": edge_el.get("function"),
+    }
+    junction_features.append(
+        {
+            "type": "Feature",
+            "geometry": {"type": "Point", "coordinates": mid},
+            "properties": props,
+        }
+    )
+
 OUT_CAMERAS_GEOJSON.write_text(
     json.dumps({"type": "FeatureCollection", "features": camera_features})
 )
 OUT_EDGES_GEOJSON.write_text(
     json.dumps({"type": "FeatureCollection", "features": edge_features})
+)
+OUT_NON_INTERNAL_EDGES_GEOJSON.write_text(
+    json.dumps({"type": "FeatureCollection", "features": non_internal_edge_features})
+)
+OUT_JUNCTIONS_GEOJSON.write_text(
+    json.dumps({"type": "FeatureCollection", "features": junction_features})
 )
 
 # Camera to edge mapping (unchanged behavior, uses flow component edges only)
@@ -288,6 +357,8 @@ print(
     "wrote",
     OUT_CAMERAS_GEOJSON.name + ",",
     OUT_EDGES_GEOJSON.name + ",",
+    OUT_NON_INTERNAL_EDGES_GEOJSON.name + ",",
+    OUT_JUNCTIONS_GEOJSON.name + ",",
     OUT_CAMERA_EDGE_MAP.name,
 )
 print("cameras", len(cam_rows))
