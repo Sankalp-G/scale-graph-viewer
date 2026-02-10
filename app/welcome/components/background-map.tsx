@@ -9,14 +9,35 @@ export default function BackgroundMap() {
     const map = new mapboxgl.Map({
 	    container: 'map',
 	    style: 'mapbox://styles/mapbox/streets-v12',
-      center: [78.9629, 23.5937],
-      zoom: 4.5,
+      center: [77.6346, 12.9741],
+      zoom: 10,
+    });
+
+    map.on('load', () => {
+      map.addSource('banglore_boundary', {
+          type: 'geojson',
+          generateId: true,
+          data: '/banglore_boundary.geojson',
+      });
+
+      map.addLayer({
+          id: 'banglore_boundary_layer',
+          type: 'line',
+          source: 'banglore_boundary',
+          paint: {
+              'line-color': 'cadetblue',
+              'line-width': 2,
+          },
+      });
     });
 
     setMap(map);
   }, []);
 
   console.log(map);
+
+  // print coords
+  console.log(map && map.getCenter());
 
   return (
     <div className="w-screen h-screen absolute top-0 left-0 -z-1">
