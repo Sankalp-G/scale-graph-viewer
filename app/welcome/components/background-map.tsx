@@ -301,10 +301,11 @@ export default function BackgroundMap({
         source: 'cameras',
         paint: {
           'circle-color': '#e63946',
-          'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 3.5, 14, 5, 17, 7],
-          'circle-opacity': 0.85,
-          'circle-stroke-color': '#3a0a0f',
-          'circle-stroke-width': 0.8,
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 4.5, 14, 7, 17, 9],
+          'circle-opacity': 0.9,
+          'circle-stroke-color': '#7a1620',
+          'circle-stroke-width': 2,
+          'circle-blur': 0.2,
         },
       });
 
@@ -313,11 +314,12 @@ export default function BackgroundMap({
         type: 'circle',
         source: 'cameras',
         paint: {
-          'circle-color': '#ffb703',
-          'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 5, 14, 7.5, 17, 8],
+          'circle-color': '#2563eb',
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 5, 14, 7.5, 17, 9.5],
           'circle-opacity': 0.95,
-          'circle-stroke-color': '#1b1b1b',
-          'circle-stroke-width': 1.0,
+          'circle-stroke-color': '#1e3a8a',
+          'circle-stroke-width': 2,
+          'circle-blur': 0.2,
         },
         filter: ["==", "camera", "__none__"],
       });
