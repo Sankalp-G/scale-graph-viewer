@@ -7,11 +7,42 @@ type CameraPoint = {
   longitude: number;
 };
 
-export default function BackgroundMap() {
+type LineStringGeometry = {
+  type: "LineString";
+  coordinates: [number, number][];
+};
+
+type FlowFeature = {
+  type: "Feature";
+  geometry: LineStringGeometry;
+  properties: {
+    edge_id: string;
+    value: number;
+  };
+};
+
+type FlowFeatureCollection = {
+  type: "FeatureCollection";
+  features: FlowFeature[];
+};
+
+type BackgroundMapProps = {
+  onSelectionChange?: (names: string[]) => void;
+  clearSelectionToken?: number;
+  flowFrame?: FlowFeatureCollection;
+};
+
+export default function BackgroundMap({
+  onSelectionChange,
+  clearSelectionToken,
+  flowFrame,
+}: BackgroundMapProps) {
   const [map, setMap] = useState<mapboxgl.Map | null>(null);
   const camerasRef = useRef<CameraPoint[]>([]);
   const selectionBoxRef = useRef<HTMLDivElement | null>(null);
   const startPointRef = useRef<mapboxgl.Point | null>(null);
+  const lastClearTokenRef = useRef<number | undefined>(undefined);
+  const pendingFlowFrameRef = useRef<FlowFeatureCollection | null>(null);
 
   const parseCameraCsv = (csvText: string): CameraPoint[] => {
     const lines = csvText.split(/\r?\n/).filter((line) => line.trim().length > 0);
@@ -52,7 +83,7 @@ export default function BackgroundMap() {
     const map = new mapboxgl.Map({
 	    container: 'map',
 	    style: 'mapbox://styles/mapbox/streets-v12',
-      center: [77.5997, 12.9747],
+      center: [77.5997, 12.9717],
       zoom: 14,
       scrollZoom: false,
       boxZoom: false,
@@ -130,6 +161,7 @@ export default function BackgroundMap() {
         .map((camera) => camera.name);
 
       console.log("Selected cameras:", selected);
+      onSelectionChange?.(selected);
 
       if (map.getLayer("cameras_selected_layer")) {
         const filter =
@@ -169,21 +201,60 @@ export default function BackgroundMap() {
       });
 
     map.on('load', () => {
-      map.addSource('edges', {
+      map.addSource('non_internal_edges', {
         type: 'geojson',
         generateId: true,
-        data: '/sample_camera_edges/edges.geojson',
+        data: '/sample_camera_edges/edges_non_internal.geojson',
       });
 
       map.addLayer({
-        id: 'edges_layer',
+        id: 'non_internal_edges_layer',
         type: 'line',
-        source: 'edges',
+        source: 'non_internal_edges',
         paint: {
-          'line-color': '#2b6f73',
-          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 1.5, 14, 3.5, 17, 6],
-          'line-opacity': 0.65,
-          'line-blur': 0.5,
+          'line-color': '#264653',
+          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2, 14, 4.5, 17, 7],
+          'line-opacity': 0.5,
+          'line-blur': 0.4,
+        },
+      });
+
+      map.addSource('flow_edges', {
+        type: 'geojson',
+        data: { type: "FeatureCollection", features: [] },
+      });
+
+      map.addLayer({
+        id: 'flow_edges_layer',
+        type: 'line',
+        source: 'flow_edges',
+        layout: {
+          'line-cap': 'round',
+          'line-join': 'round',
+        },
+        paint: {
+          'line-color': [
+            'match',
+            ['get', 'value'],
+            1,
+            '#f4a261',
+            2,
+            '#e63946',
+            '#94a3b8',
+          ],
+          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2, 14, 4.5, 17, 7],
+          'line-opacity': [
+            'match',
+            ['get', 'value'],
+            0,
+            0,
+            1,
+            1,
+            2,
+            1,
+            0.5,
+          ],
+          'line-blur': 0.6,
         },
       });
 
@@ -238,6 +309,14 @@ export default function BackgroundMap() {
         },
         filter: ["==", "camera", "__none__"],
       });
+
+      if (pendingFlowFrameRef.current) {
+        const source = map.getSource("flow_edges") as mapboxgl.GeoJSONSource | undefined;
+        if (source) {
+          source.setData(pendingFlowFrameRef.current);
+          pendingFlowFrameRef.current = null;
+        }
+      }
     });
 
     setMap(map);
@@ -253,14 +332,40 @@ export default function BackgroundMap() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!map || clearSelectionToken === undefined) {
+      return;
+    }
+    if (lastClearTokenRef.current === clearSelectionToken) {
+      return;
+    }
+    lastClearTokenRef.current = clearSelectionToken;
+    if (map.getLayer("cameras_selected_layer")) {
+      map.setFilter("cameras_selected_layer", ["==", "camera", "__none__"]);
+    }
+    onSelectionChange?.([]);
+  }, [map, clearSelectionToken, onSelectionChange]);
+
+  useEffect(() => {
+    if (!map || !flowFrame) {
+      return;
+    }
+    const source = map.getSource("flow_edges") as mapboxgl.GeoJSONSource | undefined;
+    if (!source) {
+      pendingFlowFrameRef.current = flowFrame;
+      return;
+    }
+    source.setData(flowFrame);
+  }, [map, flowFrame]);
+
   console.log(map);
 
   // print coords
   console.log(map && map.getCenter());
 
   return (
-    <div className="w-screen h-screen absolute top-0 left-0 -z-1">
-      <div className="w-full h-full" id="map"></div>
+    <div className="absolute inset-0 z-0">
+      <div className="h-full w-full" id="map"></div>
     </div>
   );
 }
