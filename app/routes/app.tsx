@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import BackgroundMap from "~/welcome/components/background-map";
 import ExperimentCard from "~/welcome/components/experiment-card";
+import SelectionCard from "~/welcome/components/selection-card";
 import type { Route } from "./+types/home";
 
 export function meta({}: Route.MetaArgs) {
@@ -141,6 +142,7 @@ export default function App() {
   );
   const [flowFrame, setFlowFrame] = useState<FlowFeatureCollection>(emptyFlowFrame);
   const [activeTimestamp, setActiveTimestamp] = useState<string | null>(null);
+  const [selectedCameras, setSelectedCameras] = useState<string[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -199,15 +201,34 @@ export default function App() {
 
   return (
     <main className="relative min-h-screen text-black bg-transparent">
-      <div className="fixed left-6 top-6 z-10">
+      <div className="fixed left-6 top-6 z-10 flex w-full max-w-xs flex-col gap-3">
         <ExperimentCard
           status={status}
           activeTimestamp={activeTimestamp}
           onStart={() => setStatus("inprogress")}
-          onClearSelection={() => setClearSelectionToken((t) => t + 1)}
+        />
+        <SelectionCard
+          selected={selectedCameras}
+          disabled={status === "inprogress"}
+          onClearSelection={() => {
+            if (status === "inprogress") {
+              return;
+            }
+            setClearSelectionToken((t) => t + 1);
+            setSelectedCameras([]);
+          }}
         />
       </div>
-      <BackgroundMap clearSelectionToken={clearSelectionToken} flowFrame={flowFrame} />
+      <BackgroundMap
+        clearSelectionToken={clearSelectionToken}
+        flowFrame={flowFrame}
+        selectionEnabled={status !== "inprogress"}
+        onSelectionChange={(names) => {
+          if (status !== "inprogress") {
+            setSelectedCameras(names);
+          }
+        }}
+      />
     </main>
   );
 }

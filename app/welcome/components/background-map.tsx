@@ -30,12 +30,14 @@ type BackgroundMapProps = {
   onSelectionChange?: (names: string[]) => void;
   clearSelectionToken?: number;
   flowFrame?: FlowFeatureCollection;
+  selectionEnabled?: boolean;
 };
 
 export default function BackgroundMap({
   onSelectionChange,
   clearSelectionToken,
   flowFrame,
+  selectionEnabled = true,
 }: BackgroundMapProps) {
   const [map, setMap] = useState<mapboxgl.Map | null>(null);
   const camerasRef = useRef<CameraPoint[]>([]);
@@ -43,6 +45,7 @@ export default function BackgroundMap({
   const startPointRef = useRef<mapboxgl.Point | null>(null);
   const lastClearTokenRef = useRef<number | undefined>(undefined);
   const pendingFlowFrameRef = useRef<FlowFeatureCollection | null>(null);
+  const selectionEnabledRef = useRef<boolean>(selectionEnabled);
 
   const parseCameraCsv = (csvText: string): CameraPoint[] => {
     const lines = csvText.split(/\r?\n/).filter((line) => line.trim().length > 0);
@@ -110,6 +113,9 @@ export default function BackgroundMap({
     };
 
     const onMouseMove = (e: mapboxgl.MapMouseEvent) => {
+      if (!selectionEnabledRef.current) {
+        return;
+      }
       const start = startPointRef.current;
       if (!start) {
         return;
@@ -127,6 +133,9 @@ export default function BackgroundMap({
     };
 
     const finishSelection = (e: mapboxgl.MapMouseEvent) => {
+      if (!selectionEnabledRef.current) {
+        return;
+      }
       const start = startPointRef.current;
       if (!start) {
         return;
@@ -173,6 +182,9 @@ export default function BackgroundMap({
     };
 
     const onMouseDown = (e: mapboxgl.MapMouseEvent) => {
+      if (!selectionEnabledRef.current) {
+        return;
+      }
       if (e.originalEvent.button !== 0) {
         return;
       }
@@ -333,7 +345,7 @@ export default function BackgroundMap({
   }, []);
 
   useEffect(() => {
-    if (!map || clearSelectionToken === undefined) {
+    if (!map || clearSelectionToken === undefined || !selectionEnabled) {
       return;
     }
     if (lastClearTokenRef.current === clearSelectionToken) {
@@ -345,6 +357,16 @@ export default function BackgroundMap({
     }
     onSelectionChange?.([]);
   }, [map, clearSelectionToken, onSelectionChange]);
+
+  useEffect(() => {
+    selectionEnabledRef.current = selectionEnabled;
+    if (!selectionEnabled) {
+      startPointRef.current = null;
+      if (selectionBoxRef.current) {
+        selectionBoxRef.current.style.display = "none";
+      }
+    }
+  }, [selectionEnabled]);
 
   useEffect(() => {
     if (!map || !flowFrame) {

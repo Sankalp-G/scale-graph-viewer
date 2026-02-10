@@ -9,7 +9,6 @@ type ExperimentCardProps = {
   status?: ExperimentStatus;
   activeTimestamp?: string | null;
   onStart?: () => void;
-  onClearSelection?: () => void;
 };
 
 const formatElapsed = (ms: number) => {
@@ -56,7 +55,6 @@ export default function ExperimentCard({
   status,
   activeTimestamp,
   onStart,
-  onClearSelection,
 }: ExperimentCardProps) {
   const isControlled = status !== undefined;
   const [internalStatus, setInternalStatus] = useState<ExperimentStatus>("idle");
@@ -108,7 +106,7 @@ export default function ExperimentCard({
   const dotTone = isInProgress ? "bg-emerald-500" : "bg-slate-400";
 
   return (
-    <section className="w-full max-w-sm overflow-hidden rounded-xl border bg-card text-card-foreground shadow-sm">
+    <section className="w-full max-w-xs overflow-hidden rounded-xl border bg-card text-card-foreground shadow-sm">
       <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
         <span
           className={cn(
@@ -133,12 +131,9 @@ export default function ExperimentCard({
           </p>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-2 px-4 pb-4">
-        <Button onClick={handleStart} disabled={isInProgress}>
+      <div className="px-4 pb-4">
+        <Button onClick={handleStart} disabled={isInProgress} className="w-full">
           Start
-        </Button>
-        <Button variant="secondary" onClick={onClearSelection}>
-          Clear selection
         </Button>
       </div>
     </section>
