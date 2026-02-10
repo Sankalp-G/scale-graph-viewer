@@ -9,25 +9,57 @@ export default function BackgroundMap() {
     const map = new mapboxgl.Map({
 	    container: 'map',
 	    style: 'mapbox://styles/mapbox/streets-v12',
-      center: [77.6346, 12.9741],
-      zoom: 10,
+      center: [77.5997, 12.9747],
+      zoom: 13.5,
     });
 
     map.on('load', () => {
-      map.addSource('banglore_boundary', {
-          type: 'geojson',
-          generateId: true,
-          data: '/banglore_boundary.geojson',
+      // map.addSource('banglore_boundary', {
+      //     type: 'geojson',
+      //     generateId: true,
+      //     data: '/banglore_boundary.geojson',
+      // });
+      //
+      // map.addLayer({
+      //     id: 'banglore_boundary_layer',
+      //     type: 'line',
+      //     source: 'banglore_boundary',
+      //     paint: {
+      //         'line-color': 'cadetblue',
+      //         'line-width': 2,
+      //     },
+      // });
+      
+      map.addSource('cameras', {
+        type: 'geojson',
+        generateId: true,
+        data: '/sample_camera_edges/cameras.geojson',
       });
 
       map.addLayer({
-          id: 'banglore_boundary_layer',
-          type: 'line',
-          source: 'banglore_boundary',
-          paint: {
-              'line-color': 'cadetblue',
-              'line-width': 2,
-          },
+        id: 'cameras_layer',
+        type: 'circle',
+        source: 'cameras',
+        paint: {
+          'circle-color': 'red',
+          'circle-radius': 5,
+        },
+      });
+
+      map.addSource('edges', {
+        type: 'geojson',
+        generateId: true,
+        data: '/sample_camera_edges/edges.geojson',
+      });
+
+      map.addLayer({
+        id: 'edges_layer',
+        type: 'line',
+        source: 'edges',
+        paint: {
+          'line-color': 'blue',
+          'line-width': 2,
+        },
       });
     });
 
