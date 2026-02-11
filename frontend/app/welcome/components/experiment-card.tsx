@@ -19,38 +19,6 @@ const formatElapsed = (ms: number) => {
   return [hours, minutes, seconds].map((val) => String(val).padStart(2, "0")).join(":");
 };
 
-const formatTimestamp = (value: string | null | undefined) => {
-  if (!value) {
-    return "--";
-  }
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "--";
-  }
-  const dateParts = new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).formatToParts(date);
-  const timeParts = new Intl.DateTimeFormat("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  }).formatToParts(date);
-
-  const getPart = (parts: Intl.DateTimeFormatPart[], type: string) =>
-    parts.find((part) => part.type === type)?.value ?? "";
-
-  const day = getPart(dateParts, "day");
-  const month = getPart(dateParts, "month");
-  const year = getPart(dateParts, "year");
-  const hour = getPart(timeParts, "hour");
-  const minute = getPart(timeParts, "minute");
-  const dayPeriod = getPart(timeParts, "dayPeriod").toLowerCase();
-
-  return `${day} ${month} ${year}, ${hour}:${minute}${dayPeriod}`;
-};
-
 export default function ExperimentCard({
   status,
   activeTimestamp,
@@ -139,3 +107,34 @@ export default function ExperimentCard({
     </section>
   );
 }
+const formatTimestamp = (value: string | null | undefined) => {
+  if (!value) {
+    return "--";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "--";
+  }
+  const dateParts = new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).formatToParts(date);
+  const timeParts = new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).formatToParts(date);
+
+  const getPart = (parts: Intl.DateTimeFormatPart[], type: string) =>
+    parts.find((part) => part.type === type)?.value ?? "";
+
+  const day = getPart(dateParts, "day");
+  const month = getPart(dateParts, "month");
+  const year = getPart(dateParts, "year");
+  const hour = getPart(timeParts, "hour");
+  const minute = getPart(timeParts, "minute");
+  const dayPeriod = getPart(timeParts, "dayPeriod").toLowerCase();
+
+  return `${day} ${month} ${year}, ${hour}:${minute}${dayPeriod}`;
+};
