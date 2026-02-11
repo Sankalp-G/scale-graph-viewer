@@ -382,11 +382,6 @@ export default function BackgroundMap({
     source.setData(flowFrame);
   }, [map, flowFrame]);
 
-  console.log(map);
-
-  // print coords
-  console.log(map && map.getCenter());
-
   return (
     <div className="absolute inset-0 z-0">
       <div className="h-full w-full" id="map"></div>

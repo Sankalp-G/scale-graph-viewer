@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package nowcast;
+
+message NowcastRequest {
+    repeated string camera_names = 1;
+}
+
+message StreamValue {
+    int64 timestamp = 1;
+    int32 value = 2;
+    string stream_name = 3;
+}
+
+message EdgeResult {
+    string edge_id = 1;
+    int32 count = 2;
+    int32 classification = 3;
+}
+
+message NowcastUpdate {
+    map<string, StreamValue> streams = 1;
+    repeated EdgeResult edge_results = 2;
+}
+
+service NowcastService {
+    rpc Stream(NowcastRequest) returns (stream NowcastUpdate);
+}

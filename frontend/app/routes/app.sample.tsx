@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import BackgroundMap from "~/welcome/components/background-map";
 import ExperimentCard from "~/welcome/components/experiment-card";
 import SelectionCard from "~/welcome/components/selection-card";
-import type { Route } from "./+types/app";
+import type { Route } from "./+types/app.sample";
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -65,7 +65,7 @@ export default function App() {
     let cancelled = false;
     const fetchStatus = async () => {
       try {
-        const res = await fetch(joinUrl(apiBase, "/app/status"));
+        const res = await fetch(joinUrl(apiBase, "/sample/status"));
         const data = (await res.json()) as { status?: StreamStatus };
         if (!cancelled && (data.status === "idle" || data.status === "inprogress")) {
           setStatus(data.status);
@@ -88,13 +88,12 @@ export default function App() {
   }, [status]);
 
   useEffect(() => {
-    const socketUrl = joinUrl(wsBase, "/app/ws/flow");
+    const socketUrl = joinUrl(wsBase, "/sample/ws/flow");
     let socket: WebSocket | null = new WebSocket(socketUrl);
 
     socket.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data) as FlowFrameMessage;
-        console.log("Received flow frame message", payload);
         if (payload.frame) {
           setFlowFrame(payload.frame);
         }
@@ -124,14 +123,7 @@ export default function App() {
       return;
     }
     try {
-      const res = await fetch(joinUrl(apiBase, "/app/start"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body:
-          selectedCameras.length > 0
-            ? JSON.stringify({ camera_names: selectedCameras })
-            : undefined,
-      });
+      const res = await fetch(joinUrl(apiBase, "/sample/start"), { method: "POST" });
       const data = (await res.json()) as { status?: StreamStatus };
       if (data.status === "idle" || data.status === "inprogress") {
         setStatus(data.status);
