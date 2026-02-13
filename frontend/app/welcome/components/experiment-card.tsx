@@ -89,7 +89,7 @@ export default function ExperimentCard({
           {timeLabel}
         </span>
       </div>
-      <div className="grid gap-3 px-4 py-4">
+      <div className="grid gap-4 px-4 py-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Active timestamp

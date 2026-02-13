@@ -101,7 +101,7 @@ class FlowStore:
             results.append(
                 {
                     "edge_id": edge_id,
-                    "count": 0,
+                    "count": classification,
                     "classification": classification,
                 }
             )

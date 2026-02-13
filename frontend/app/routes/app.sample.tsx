@@ -1,8 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import BackgroundMap from "~/welcome/components/background-map";
+import EdgeCountChart from "~/components/edge-count-chart";
 import ExperimentCard from "~/welcome/components/experiment-card";
 import SelectionCard from "~/welcome/components/selection-card";
+import {
+  recordEdgeResults,
+  resetEdgeResults,
+  type EdgeResult,
+} from "~/stores/edge-results";
 import type { Route } from "./+types/app.sample";
 
 export function meta({}: Route.MetaArgs) {
@@ -38,12 +44,6 @@ const emptyFlowFrame: FlowFeatureCollection = {
 };
 
 type StreamStatus = "idle" | "inprogress";
-
-type EdgeResult = {
-  edge_id: string;
-  count: number;
-  classification: number;
-};
 
 type FlowFrameMessage = {
   timestamp?: string | null;
@@ -138,8 +138,11 @@ export default function App() {
     if (status !== "inprogress") {
       setFlowFrame(emptyFlowFrame);
       setActiveTimestamp(null);
+      resetEdgeResults();
     }
   }, [status]);
+
+  useEffect(() => () => resetEdgeResults(), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -189,6 +192,7 @@ export default function App() {
       try {
         const payload = JSON.parse(event.data) as FlowFrameMessage;
         if (payload.edge_results !== undefined) {
+          recordEdgeResults(payload.edge_results, payload.timestamp);
           const geometryMap = geometryMapRef.current;
           if (geometryMap) {
             setFlowFrame(buildFlowFrame(payload.edge_results, geometryMap));
@@ -253,6 +257,7 @@ export default function App() {
             setSelectedCameras([]);
           }}
         />
+        <EdgeCountChart />
       </div>
       <BackgroundMap
         clearSelectionToken={clearSelectionToken}
