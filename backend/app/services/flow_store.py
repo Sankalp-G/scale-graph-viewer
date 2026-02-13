@@ -93,6 +93,20 @@ class FlowStore:
             )
         return {"type": "FeatureCollection", "features": features}
 
+    def build_edge_results(self, index: int) -> List[Dict[str, int]]:
+        results: List[Dict[str, int]] = []
+        for edge_id, values in self.rows:
+            value = values[index] if index < len(values) else 0
+            classification = int(value) if value is not None else 0
+            results.append(
+                {
+                    "edge_id": edge_id,
+                    "count": 0,
+                    "classification": classification,
+                }
+            )
+        return results
+
 
 def load_flow_store(data_dir: Path) -> FlowStore:
     timestamps, rows = load_flow_csv(data_dir / "edge_flow_component_classes.csv")

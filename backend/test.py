@@ -51,7 +51,6 @@ def main():
             streams_sum = ", ".join(f"{k}={v.value}" for k, v in update.streams.items())
             logger.info("================================================")
             for er in update.edge_results:
-                logger.info("%s", update.streams)
                 logger.info("edge_id: %s, count: %s, classification: %s", er.edge_id, er.count, er.classification)
             logger.info("================================================")
             n += 1

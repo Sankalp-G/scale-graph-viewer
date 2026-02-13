@@ -4,13 +4,10 @@ import asyncio
 import logging
 import os
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
-
-from ..services.flow_store import load_geometry_map, normalize_edge_id
 
 import grpc
 
@@ -20,9 +17,6 @@ import app.proto.nowcast_pb2_grpc as nowcast_pb2_grpc
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/app")
-
-DATA_DIR = Path(__file__).resolve().parents[2] / "data"
-geometry_map = load_geometry_map(DATA_DIR / "edges_non_internal.geojson")
 
 DEFAULT_GRPC_SERVER = os.getenv("NOWCAST_GRPC_SERVER", "10.24.24.28:50053")
 DEFAULT_CAMERA_NAMES = [
@@ -79,32 +73,6 @@ def normalize_epoch(timestamp: int) -> Optional[str]:
     return datetime.fromtimestamp(seconds, tz=timezone.utc).isoformat()
 
 
-def build_flow_frame(edge_results) -> Dict[str, object]:
-    features: List[Dict[str, object]] = []
-    for result in edge_results:
-        edge_id = normalize_edge_id(result.edge_id)
-        if not edge_id:
-            continue
-        geometry = geometry_map.get(edge_id)
-        if not geometry:
-            continue
-        classification = int(result.classification)
-        count = int(result.count)
-        value = classification
-        features.append(
-            {
-                "type": "Feature",
-                "geometry": geometry,
-                "properties": {
-                    "edge_id": edge_id,
-                    "value": value,
-                    "count": count,
-                },
-            }
-        )
-    return {"type": "FeatureCollection", "features": features}
-
-
 def extract_stream_timestamp(update) -> Optional[str]:
     for value in update.streams.values():
         if value.timestamp < 0:
@@ -158,7 +126,14 @@ async def consume_stream(server: str, camera_names: List[str], request_id: int) 
 
             message = {
                 "timestamp": extract_stream_timestamp(update),
-                "frame": build_flow_frame(update.edge_results),
+                "edge_results": [
+                    {
+                        "edge_id": result.edge_id,
+                        "count": int(result.count),
+                        "classification": int(result.classification),
+                    }
+                    for result in update.edge_results
+                ],
             }
             global latest_message
             async with latest_lock:

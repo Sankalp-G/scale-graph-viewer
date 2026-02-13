@@ -48,10 +48,10 @@ async def stream_flow(websocket: WebSocket) -> None:
                 last_status = "inprogress"
 
             frame_index = index % flow_store.total_frames
-            frame = flow_store.build_frame(frame_index)
+            edge_results = flow_store.build_edge_results(frame_index)
             message = {
                 "timestamp": flow_store.timestamps[frame_index],
-                "frame": frame,
+                "edge_results": edge_results,
             }
             await websocket.send_json(message)
             index = (index + 1) % flow_store.total_frames
