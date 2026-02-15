@@ -24,25 +24,25 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\rnowcast.proto\x12\x07nowcast\"&\n\x0eNowcastRequest\x12\x14\n\x0c\x63\x61mera_names\x18\x01 \x03(\t\"D\n\x0bStreamValue\x12\x11\n\ttimestamp\x18\x01 \x01(\x03\x12\r\n\x05value\x18\x02 \x01(\x05\x12\x13\n\x0bstream_name\x18\x03 \x01(\t\"D\n\nEdgeResult\x12\x0f\n\x07\x65\x64ge_id\x18\x01 \x01(\t\x12\r\n\x05\x63ount\x18\x02 \x01(\x05\x12\x16\n\x0e\x63lassification\x18\x03 \x01(\x05\"\xb6\x01\n\rNowcastUpdate\x12\x34\n\x07streams\x18\x01 \x03(\x0b\x32#.nowcast.NowcastUpdate.StreamsEntry\x12)\n\x0c\x65\x64ge_results\x18\x02 \x03(\x0b\x32\x13.nowcast.EdgeResult\x1a\x44\n\x0cStreamsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12#\n\x05value\x18\x02 \x01(\x0b\x32\x14.nowcast.StreamValue:\x02\x38\x01\x32M\n\x0eNowcastService\x12;\n\x06Stream\x12\x17.nowcast.NowcastRequest\x1a\x16.nowcast.NowcastUpdate0\x01\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\rnowcast.proto\x12\x07nowcast\"Z\n\x0eNowcastRequest\x12\x14\n\x0c\x63\x61mera_names\x18\x01 \x03(\t\x12\x1c\n\x14return_every_seconds\x18\x02 \x01(\x02\x12\x14\n\x0chistory_size\x18\x03 \x01(\x05\"\x1d\n\x0b\x43lassCounts\x12\x0e\n\x06\x63ounts\x18\x01 \x03(\x05\"D\n\nEdgeResult\x12\x0f\n\x07\x65\x64ge_id\x18\x01 \x01(\t\x12\r\n\x05\x63ount\x18\x02 \x01(\x05\x12\x16\n\x0e\x63lassification\x18\x03 \x01(\x05\"6\n\x0e\x45\x64geResultList\x12$\n\x07results\x18\x01 \x03(\x0b\x32\x13.nowcast.EdgeResult\"\x98\x01\n\x0bStreamValue\x12\x13\n\x0bstream_name\x18\x01 \x01(\t\x12\x12\n\ntimestamps\x18\x02 \x03(\x03\x12$\n\x06values\x18\x03 \x03(\x0b\x32\x14.nowcast.ClassCounts\x12:\n\x19\x65\x64ge_results_per_timestep\x18\x04 \x03(\x0b\x32\x17.nowcast.EdgeResultList\"g\n\rNowcastUpdate\x12\x1a\n\x12timestamp_datetime\x18\x01 \x01(\t\x12:\n\x19\x65\x64ge_results_per_timestep\x18\x02 \x03(\x0b\x32\x17.nowcast.EdgeResultList2M\n\x0eNowcastService\x12;\n\x06Stream\x12\x17.nowcast.NowcastRequest\x1a\x16.nowcast.NowcastUpdate0\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'nowcast_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
-  _globals['_NOWCASTUPDATE_STREAMSENTRY']._loaded_options = None
-  _globals['_NOWCASTUPDATE_STREAMSENTRY']._serialized_options = b'8\001'
   _globals['_NOWCASTREQUEST']._serialized_start=26
-  _globals['_NOWCASTREQUEST']._serialized_end=64
-  _globals['_STREAMVALUE']._serialized_start=66
-  _globals['_STREAMVALUE']._serialized_end=134
-  _globals['_EDGERESULT']._serialized_start=136
-  _globals['_EDGERESULT']._serialized_end=204
-  _globals['_NOWCASTUPDATE']._serialized_start=207
-  _globals['_NOWCASTUPDATE']._serialized_end=389
-  _globals['_NOWCASTUPDATE_STREAMSENTRY']._serialized_start=321
-  _globals['_NOWCASTUPDATE_STREAMSENTRY']._serialized_end=389
-  _globals['_NOWCASTSERVICE']._serialized_start=391
-  _globals['_NOWCASTSERVICE']._serialized_end=468
+  _globals['_NOWCASTREQUEST']._serialized_end=116
+  _globals['_CLASSCOUNTS']._serialized_start=118
+  _globals['_CLASSCOUNTS']._serialized_end=147
+  _globals['_EDGERESULT']._serialized_start=149
+  _globals['_EDGERESULT']._serialized_end=217
+  _globals['_EDGERESULTLIST']._serialized_start=219
+  _globals['_EDGERESULTLIST']._serialized_end=273
+  _globals['_STREAMVALUE']._serialized_start=276
+  _globals['_STREAMVALUE']._serialized_end=428
+  _globals['_NOWCASTUPDATE']._serialized_start=430
+  _globals['_NOWCASTUPDATE']._serialized_end=533
+  _globals['_NOWCASTSERVICE']._serialized_start=535
+  _globals['_NOWCASTSERVICE']._serialized_end=612
 # @@protoc_insertion_point(module_scope)

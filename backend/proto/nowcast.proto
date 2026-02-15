@@ -4,12 +4,12 @@ package nowcast;
 
 message NowcastRequest {
     repeated string camera_names = 1;
+    float return_every_seconds = 2;
+    int32 history_size = 3;
 }
 
-message StreamValue {
-    int64 timestamp = 1;
-    int32 value = 2;
-    string stream_name = 3;
+message ClassCounts {
+    repeated int32 counts = 1;
 }
 
 message EdgeResult {
@@ -18,11 +18,23 @@ message EdgeResult {
     int32 classification = 3;
 }
 
+message EdgeResultList {
+    repeated EdgeResult results = 1;
+}
+
+message StreamValue {
+    string stream_name = 1;
+    repeated int64 timestamps = 2;
+    repeated ClassCounts values = 3;
+    repeated EdgeResultList edge_results_per_timestep = 4;
+}
+
 message NowcastUpdate {
-    map<string, StreamValue> streams = 1;
-    repeated EdgeResult edge_results = 2;
+    string timestamp_datetime = 1;
+    repeated EdgeResultList edge_results_per_timestep = 2;
 }
 
 service NowcastService {
     rpc Stream(NowcastRequest) returns (stream NowcastUpdate);
 }
+ 

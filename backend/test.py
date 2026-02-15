@@ -30,10 +30,12 @@ def load_stream_names_from_camera_list(path):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--server", default="10.24.24.28:50053")
+    parser.add_argument("--server", default="10.24.24.28:50052")
     parser.add_argument("--stream-ids", type=str, nargs="+", help="Camera names (2nd column)")
     parser.add_argument("--camera-list", type=str, help="Path to camera_list.txt")
     parser.add_argument("--count", type=int, default=0, help="Number of updates to print (0 = forever)")
+    parser.add_argument("--return-every", type=float, default=1.0, help="Seconds between updates (sent to server)")
+    parser.add_argument("--history-size", type=int, default=1, help="Number of last rows per stream (sent to server)")
     args = parser.parse_args()
 
     if args.stream_ids is not None:
@@ -46,12 +48,17 @@ def main():
     with grpc.insecure_channel(args.server) as channel:
         stub = nowcast_pb2_grpc.NowcastServiceStub(channel)
         req = nowcast_pb2.NowcastRequest(camera_names=camera_names)
+        if hasattr(req, "return_every_seconds"):
+            req.return_every_seconds = args.return_every
+        if hasattr(req, "history_size"):
+            req.history_size = args.history_size
         n = 0
         for update in stub.Stream(req):
-            streams_sum = ", ".join(f"{k}={v.value}" for k, v in update.streams.items())
             logger.info("================================================")
-            for er in update.edge_results:
-                logger.info("edge_id: %s, count: %s, classification: %s", er.edge_id, er.count, er.classification)
+            logger.info("timestamp_datetime: %s", update.timestamp_datetime)
+            for i, er_list in enumerate(update.edge_results_per_timestep):
+                triples = [(er.edge_id, er.count, er.classification) for er in er_list.results]
+                logger.info("  step %d: %s", i, triples)
             logger.info("================================================")
             n += 1
             if args.count > 0 and n >= args.count:
