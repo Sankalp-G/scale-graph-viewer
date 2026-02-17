@@ -1,6 +1,12 @@
 import { useMemo } from "react";
 
-import { useEdgeResultsStore } from "~/stores/edge-results";
+import { useEdgeResultsStore, type EdgeCountPoint } from "~/stores/edge-results";
+
+type EdgeCountChartProps = {
+  points?: EdgeCountPoint[];
+  title?: string;
+  timeRange?: { startMs: number; endMs: number };
+};
 
 const niceNum = (range: number, round: boolean) => {
   if (range <= 0) {
@@ -57,8 +63,23 @@ const formatTickValue = (value: number) => {
   return `${value}`;
 };
 
-export default function EdgeCountChart() {
-  const { points } = useEdgeResultsStore();
+const getPointTimeMs = (point: EdgeCountPoint) => {
+  if (point.timestamp) {
+    const parsed = Date.parse(point.timestamp);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  return point.receivedAt;
+};
+
+export default function EdgeCountChart({
+  points: pointsProp,
+  title = "Aggregate count",
+  timeRange,
+}: EdgeCountChartProps) {
+  const { points: storePoints } = useEdgeResultsStore();
+  const points = pointsProp ?? storePoints;
 
   const chart = useMemo(() => {
     const width = 280;
@@ -84,12 +105,16 @@ export default function EdgeCountChart() {
     }
 
     const totals = points.map((point) => point.total);
+    const times = points.map((point) => getPointTimeMs(point));
     const maxValue = Math.max(0, ...totals);
     const minValue = 0;
     const targetTickCount = 5;
     const step = niceNum(maxValue / (targetTickCount - 1 || 1), true);
     const scaleMax = Math.max(step, Math.ceil(maxValue / step) * step);
     const range = scaleMax - minValue || 1;
+    const minTime = timeRange ? timeRange.startMs : Math.min(...times);
+    const maxTime = timeRange ? timeRange.endMs : Math.max(...times);
+    const timeSpan = maxTime - minTime;
 
     const yTicks: number[] = [];
     for (let value = 0; value <= scaleMax + step / 2; value += step) {
@@ -100,7 +125,14 @@ export default function EdgeCountChart() {
       if (points.length === 1) {
         return padding.left + plotWidth / 2;
       }
-      return padding.left + (index / (points.length - 1)) * plotWidth;
+      if (!Number.isFinite(timeSpan) || timeSpan <= 0) {
+        return padding.left + (index / (points.length - 1)) * plotWidth;
+      }
+      const time = times[index];
+      if (!Number.isFinite(time)) {
+        return padding.left + (index / (points.length - 1)) * plotWidth;
+      }
+      return padding.left + ((time - minTime) / timeSpan) * plotWidth;
     };
     const getY = (value: number) =>
       padding.top + (1 - (value - minValue) / range) * plotHeight;
@@ -122,6 +154,10 @@ export default function EdgeCountChart() {
 
     const startPoint = points[0];
     const endPoint = points[points.length - 1];
+    const useRangeLabels =
+      timeRange &&
+      Number.isFinite(timeRange.startMs) &&
+      Number.isFinite(timeRange.endMs);
 
     return {
       width,
@@ -131,18 +167,22 @@ export default function EdgeCountChart() {
       maxValue,
       scaleMax,
       yTicks,
-      startLabel: formatTimeLabel(startPoint.timestamp, startPoint.receivedAt),
-      endLabel: formatTimeLabel(endPoint.timestamp, endPoint.receivedAt),
+      startLabel: useRangeLabels
+        ? formatTimeLabel(null, timeRange.startMs)
+        : formatTimeLabel(startPoint.timestamp, startPoint.receivedAt),
+      endLabel: useRangeLabels
+        ? formatTimeLabel(null, timeRange.endMs)
+        : formatTimeLabel(endPoint.timestamp, endPoint.receivedAt),
       latestTotal: totals[totals.length - 1] ?? 0,
       padding,
     };
-  }, [points]);
+  }, [points, timeRange]);
 
   return (
     <div className="rounded-lg border border-border/60 bg-white p-3 text-slate-900 shadow-sm">
       <div className="flex items-center justify-between">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Aggregate count
+          {title}
         </p>
         <span className="text-lg font-semibold tabular-nums text-foreground">
           {chart.latestTotal}
