@@ -85,7 +85,7 @@ export default function BackgroundMap({
     mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
     const map = new mapboxgl.Map({
 	    container: 'map',
-	    style: 'mapbox://styles/mapbox/streets-v12',
+	    style: 'mapbox://styles/mapbox/light-v11',
       center: [77.5997, 12.9717],
       zoom: 14,
       // scrollZoom: false,
@@ -248,10 +248,12 @@ export default function BackgroundMap({
           'line-color': [
             'match',
             ['get', 'value'],
+            0,
+            '#22c55e',
             1,
-            '#f4a261',
+            '#f59e0b',
             2,
-            '#e63946',
+            '#ef4444',
             '#94a3b8',
           ],
           'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2, 14, 4.5, 17, 7],
@@ -259,7 +261,7 @@ export default function BackgroundMap({
             'match',
             ['get', 'value'],
             0,
-            0,
+            1,
             1,
             1,
             2,
