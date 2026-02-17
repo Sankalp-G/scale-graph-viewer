@@ -3,8 +3,8 @@
 import grpc
 import argparse
 
-import schema_pb2
-import schema_pb2_grpc
+import app.proto.forecast_streaming_pb2 as schema_pb2
+import app.proto.forecast_streaming_pb2_grpc as schema_pb2_grpc
 
 
 def load_stream_names_from_camera_list(path):
