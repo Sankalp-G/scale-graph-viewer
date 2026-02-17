@@ -90,13 +90,11 @@ const appendPoint = (points: EdgeCountPoint[], nextPoint: EdgeCountPoint) =>
   [...points, nextPoint].slice(-MAX_POINTS);
 
 const getPointTimeMs = (point: EdgeCountPoint) => {
-  if (point.timestamp) {
-    const parsed = Date.parse(point.timestamp);
-    if (Number.isFinite(parsed)) {
-      return parsed;
-    }
+  if (!point.timestamp) {
+    return Number.NaN;
   }
-  return point.receivedAt;
+  const parsed = Date.parse(point.timestamp);
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
 };
 
 const getLatestTimestamp = (
@@ -117,10 +115,10 @@ const getLatestTimestamp = (
   };
   visit(nowcastingPoints);
   visit(forecastingPoints);
-  if (!latest) {
+  if (!latest || !latest.timestamp) {
     return null;
   }
-  return latest.timestamp ?? new Date(latest.receivedAt).toISOString();
+  return latest.timestamp;
 };
 
 const buildTimeRange = (

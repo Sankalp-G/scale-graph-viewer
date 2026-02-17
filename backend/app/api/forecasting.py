@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from datetime import datetime, timedelta
 from typing import Dict, List, Mapping, Optional, Tuple
 
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
@@ -99,6 +100,24 @@ def choose_horizon(
     return key, edge_results[key]
 
 
+def shift_timestamp(timestamp: str, minutes: int = 5) -> str:
+    if not timestamp:
+        return timestamp
+    cleaned = timestamp.strip()
+    if not cleaned:
+        return timestamp
+    try:
+        if cleaned.endswith("Z"):
+            cleaned = cleaned[:-1] + "+00:00"
+        parsed = datetime.fromisoformat(cleaned)
+    except ValueError:
+        return timestamp
+    shifted = parsed + timedelta(minutes=minutes)
+    if timestamp.endswith("Z") and shifted.tzinfo is not None:
+        return shifted.isoformat().replace("+00:00", "Z")
+    return shifted.isoformat()
+
+
 async def ensure_stream_task() -> None:
     global stream_task
     async with task_lock:
@@ -177,7 +196,9 @@ async def consume_forecast(
                 ]
 
             message = {
-                "timestamp": response.timestamp or None,
+                "timestamp": shift_timestamp(response.timestamp, 5)
+                if response.timestamp
+                else None,
                 "edge_results": results_payload,
                 "horizon": selected_key,
                 "success": bool(response.success),
