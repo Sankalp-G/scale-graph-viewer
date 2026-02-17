@@ -1,4 +1,13 @@
 import { useMemo } from "react";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 import { useEdgeResultsStore, type EdgeCountPoint } from "~/stores/edge-results";
 
@@ -63,6 +72,8 @@ const formatTickValue = (value: number) => {
   return `${value}`;
 };
 
+const MAX_TIME_WINDOW_MS = 600_000;
+
 const getPointTimeMs = (point: EdgeCountPoint) => {
   if (point.timestamp) {
     const parsed = Date.parse(point.timestamp);
@@ -82,99 +93,76 @@ export default function EdgeCountChart({
   const points = pointsProp ?? storePoints;
 
   const chart = useMemo(() => {
-    const width = 280;
     const height = 120;
-    const padding = { top: 8, right: 10, bottom: 22, left: 42 };
-    const plotWidth = width - padding.left - padding.right;
-    const plotHeight = height - padding.top - padding.bottom;
-
     if (points.length === 0) {
       return {
-        width,
         height,
-        path: "",
-        area: "",
         maxValue: 0,
         scaleMax: 1,
         yTicks: [0, 1],
         startLabel: "--:--",
         endLabel: "--:--",
         latestTotal: 0,
-        padding,
+        data: [],
+        windowStart: 0,
+        windowEnd: 0,
       };
     }
 
-    const totals = points.map((point) => point.total);
     const times = points.map((point) => getPointTimeMs(point));
+    const baseMinTime = timeRange ? timeRange.startMs : Math.min(...times);
+    const baseMaxTime = timeRange ? timeRange.endMs : Math.max(...times);
+    const useWindow =
+      Number.isFinite(baseMinTime) &&
+      Number.isFinite(baseMaxTime) &&
+      baseMaxTime - baseMinTime > MAX_TIME_WINDOW_MS;
+    const windowEnd = useWindow ? baseMaxTime : baseMaxTime;
+    const windowStart = useWindow ? baseMaxTime - MAX_TIME_WINDOW_MS : baseMinTime;
+
+    const windowedPoints = points.filter((point) => {
+      const time = getPointTimeMs(point);
+      return time >= windowStart && time <= windowEnd;
+    });
+    const sortedPoints = windowedPoints
+      .map((point) => ({ point, timeMs: getPointTimeMs(point) }))
+      .filter((entry) => Number.isFinite(entry.timeMs))
+      .sort((a, b) => a.timeMs - b.timeMs);
+    const totals = sortedPoints.map((entry) => entry.point.total);
     const maxValue = Math.max(0, ...totals);
-    const minValue = 0;
     const targetTickCount = 5;
     const step = niceNum(maxValue / (targetTickCount - 1 || 1), true);
     const scaleMax = Math.max(step, Math.ceil(maxValue / step) * step);
-    const range = scaleMax - minValue || 1;
-    const minTime = timeRange ? timeRange.startMs : Math.min(...times);
-    const maxTime = timeRange ? timeRange.endMs : Math.max(...times);
-    const timeSpan = maxTime - minTime;
-
     const yTicks: number[] = [];
     for (let value = 0; value <= scaleMax + step / 2; value += step) {
       yTicks.push(value);
     }
 
-    const getX = (index: number) => {
-      if (points.length === 1) {
-        return padding.left + plotWidth / 2;
+    const data = sortedPoints.map((entry) => ({
+      timeMs: entry.timeMs,
+      total: entry.point.total,
+    }));
+    if (data.length > 0) {
+      const first = data[0];
+      const last = data[data.length - 1];
+      if (first.timeMs > windowStart) {
+        data.unshift({ timeMs: windowStart, total: first.total });
       }
-      if (!Number.isFinite(timeSpan) || timeSpan <= 0) {
-        return padding.left + (index / (points.length - 1)) * plotWidth;
+      if (last.timeMs < windowEnd) {
+        data.push({ timeMs: windowEnd, total: last.total });
       }
-      const time = times[index];
-      if (!Number.isFinite(time)) {
-        return padding.left + (index / (points.length - 1)) * plotWidth;
-      }
-      return padding.left + ((time - minTime) / timeSpan) * plotWidth;
-    };
-    const getY = (value: number) =>
-      padding.top + (1 - (value - minValue) / range) * plotHeight;
-
-    let path = "";
-    let area = "";
-    points.forEach((point, index) => {
-      const x = getX(index);
-      const y = getY(point.total);
-      path += index === 0 ? `M ${x} ${y}` : ` L ${x} ${y}`;
-    });
-
-    if (points.length > 0) {
-      const startX = getX(0);
-      const endX = getX(points.length - 1);
-      const baseline = padding.top + plotHeight;
-      area = `${path} L ${endX} ${baseline} L ${startX} ${baseline} Z`;
     }
 
-    const startPoint = points[0];
-    const endPoint = points[points.length - 1];
-    const useRangeLabels =
-      timeRange &&
-      Number.isFinite(timeRange.startMs) &&
-      Number.isFinite(timeRange.endMs);
-
     return {
-      width,
       height,
-      path,
-      area,
       maxValue,
       scaleMax,
       yTicks,
-      startLabel: useRangeLabels
-        ? formatTimeLabel(null, timeRange.startMs)
-        : formatTimeLabel(startPoint.timestamp, startPoint.receivedAt),
-      endLabel: useRangeLabels
-        ? formatTimeLabel(null, timeRange.endMs)
-        : formatTimeLabel(endPoint.timestamp, endPoint.receivedAt),
+      startLabel: formatTimeLabel(null, windowStart),
+      endLabel: formatTimeLabel(null, windowEnd),
       latestTotal: totals[totals.length - 1] ?? 0,
-      padding,
+      data,
+      windowStart,
+      windowEnd,
     };
   }, [points, timeRange]);
 
@@ -188,75 +176,58 @@ export default function EdgeCountChart({
           {chart.latestTotal}
         </span>
       </div>
-      <svg
-        className="mt-2 w-full"
-        viewBox={`0 0 ${chart.width} ${chart.height}`}
-        role="img"
-        aria-label="Aggregate count over time"
-      >
-        <text
-          x="10"
-          y={chart.height / 2}
-          fontSize="10"
-          fill="currentColor"
-          opacity="0.5"
-          textAnchor="middle"
-          transform={`rotate(-90 10 ${chart.height / 2})`}
-        >
-          count
-        </text>
-        {chart.yTicks.map((tick) => {
-          const y =
-            chart.padding.top +
-            (1 - tick / (chart.scaleMax || 1)) *
-              (chart.height - chart.padding.top - chart.padding.bottom);
-          return (
-            <g key={`y-${tick}`}>
-              <line
-                x1={chart.padding.left}
-                x2={chart.width - chart.padding.right}
-                y1={y}
-                y2={y}
-                stroke="currentColor"
-                strokeOpacity="0.08"
+      <div className="mt-2 h-[120px]">
+        {chart.data.length > 0 ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={chart.data}>
+              <defs>
+                <linearGradient id="countFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="currentColor" stopOpacity={0.25} />
+                  <stop offset="95%" stopColor="currentColor" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid stroke="currentColor" strokeOpacity={0.08} vertical={false} />
+              <XAxis
+                dataKey="timeMs"
+                type="number"
+                domain={[chart.windowStart, chart.windowEnd]}
+                hide
               />
-              <text
-                x={chart.padding.left - 6}
-                y={y + 3}
-                fontSize="10"
-                fill="currentColor"
-                opacity="0.6"
-                textAnchor="end"
-              >
-                {formatTickValue(tick)}
-              </text>
-            </g>
-          );
-        })}
-        {chart.area ? (
-          <path d={chart.area} fill="currentColor" opacity="0.08" />
-        ) : null}
-        {chart.path ? (
-          <path
-            d={chart.path}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-          />
+              <YAxis
+                domain={[0, chart.scaleMax]}
+                ticks={chart.yTicks}
+                tickFormatter={formatTickValue}
+                tick={{ fontSize: 10, fill: "currentColor", opacity: 0.6 }}
+                axisLine={false}
+                tickLine={false}
+                width={36}
+              />
+              <Tooltip
+                contentStyle={{
+                  borderRadius: "8px",
+                  borderColor: "rgba(15, 23, 42, 0.08)",
+                }}
+                labelFormatter={(value) =>
+                  typeof value === "number" ? formatTimeLabel(null, value) : ""
+                }
+                formatter={(value) => [value, "count"]}
+              />
+              <Area
+                type="monotone"
+                dataKey="total"
+                stroke="currentColor"
+                strokeWidth={2}
+                fill="url(#countFill)"
+                isAnimationActive={false}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
         ) : (
-          <text
-            x="50%"
-            y="50%"
-            textAnchor="middle"
-            fontSize="12"
-            fill="currentColor"
-            opacity="0.4"
-          >
+          <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
             Waiting for data
-          </text>
+          </div>
         )}
-      </svg>
+      </div>
       <div className="flex items-center justify-between text-[11px] text-muted-foreground">
         <span>{chart.startLabel}</span>
         <span>time</span>
