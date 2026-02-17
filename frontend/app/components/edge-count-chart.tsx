@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useId, useMemo } from "react";
 import {
   Area,
   AreaChart,
@@ -15,6 +15,7 @@ type EdgeCountChartProps = {
   points?: EdgeCountPoint[];
   title?: string;
   timeRange?: { startMs: number; endMs: number };
+  lineColor?: string;
 };
 
 const niceNum = (range: number, round: boolean) => {
@@ -88,9 +89,11 @@ export default function EdgeCountChart({
   points: pointsProp,
   title = "Aggregate count",
   timeRange,
+  lineColor,
 }: EdgeCountChartProps) {
   const { points: storePoints } = useEdgeResultsStore();
   const points = pointsProp ?? storePoints;
+  const gradientId = useId();
 
   const chart = useMemo(() => {
     const height = 120;
@@ -172,18 +175,26 @@ export default function EdgeCountChart({
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           {title}
         </p>
-        <span className="text-lg font-semibold tabular-nums text-foreground">
+        <span className="text-sm font-semibold tabular-nums text-foreground">
           {chart.latestTotal}
         </span>
       </div>
-      <div className="mt-2 h-[120px]">
+      <div className="mt-2 -ml-3 h-[120px]">
         {chart.data.length > 0 ? (
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chart.data}>
               <defs>
-                <linearGradient id="countFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="currentColor" stopOpacity={0.25} />
-                  <stop offset="95%" stopColor="currentColor" stopOpacity={0} />
+                <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                  <stop
+                    offset="5%"
+                    stopColor={lineColor ?? "currentColor"}
+                    stopOpacity={0.25}
+                  />
+                  <stop
+                    offset="95%"
+                    stopColor={lineColor ?? "currentColor"}
+                    stopOpacity={0}
+                  />
                 </linearGradient>
               </defs>
               <CartesianGrid stroke="currentColor" strokeOpacity={0.08} vertical={false} />
@@ -206,6 +217,7 @@ export default function EdgeCountChart({
                 contentStyle={{
                   borderRadius: "8px",
                   borderColor: "rgba(15, 23, 42, 0.08)",
+                  fontSize: "12px",
                 }}
                 labelFormatter={(value) =>
                   typeof value === "number" ? formatTimeLabel(null, value) : ""
@@ -215,9 +227,9 @@ export default function EdgeCountChart({
               <Area
                 type="monotone"
                 dataKey="total"
-                stroke="currentColor"
+                stroke={lineColor ?? "currentColor"}
                 strokeWidth={2}
-                fill="url(#countFill)"
+                fill={`url(#${gradientId})`}
                 isAnimationActive={false}
               />
             </AreaChart>

@@ -423,11 +423,13 @@ export default function App() {
           title="Nowcasting"
           points={nowcastingPoints}
           timeRange={timeRange ?? undefined}
+          lineColor="#2563eb"
         />
         <EdgeCountChart
           title="Forecasting"
           points={forecastingPoints}
           timeRange={timeRange ?? undefined}
+          lineColor="#14b8a6"
         />
       </div>
       <BackgroundMap
