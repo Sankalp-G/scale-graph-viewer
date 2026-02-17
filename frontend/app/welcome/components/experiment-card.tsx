@@ -123,6 +123,7 @@ const formatTimestamp = (value: string | null | undefined) => {
   const timeParts = new Intl.DateTimeFormat("en-US", {
     hour: "numeric",
     minute: "2-digit",
+    second: "2-digit",
     hour12: true,
   }).formatToParts(date);
 
@@ -134,7 +135,8 @@ const formatTimestamp = (value: string | null | undefined) => {
   const year = getPart(dateParts, "year");
   const hour = getPart(timeParts, "hour");
   const minute = getPart(timeParts, "minute");
+  const second = getPart(timeParts, "second");
   const dayPeriod = getPart(timeParts, "dayPeriod").toLowerCase();
 
-  return `${day} ${month} ${year}, ${hour}:${minute}${dayPeriod}`;
+  return `${day} ${month} ${year}, ${hour}:${minute}:${second}${dayPeriod}`;
 };
