@@ -31,7 +31,7 @@ export default function SelectionCard({
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-muted-foreground">No cameras selected.</p>
+          <p className="text-sm text-muted-foreground">No cameras filtered.</p>
         )}
       </div>
     </section>
