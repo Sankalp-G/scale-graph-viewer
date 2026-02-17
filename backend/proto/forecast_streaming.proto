@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package forecast_streaming;
+
+message ForecastStreamRequest {
+    repeated string stream_ids = 1;
+    int32 lag = 2;           // Lookback window in seconds (default: 300 = 5 minutes)
+    int32 return_every = 3;  // Interval between forecasts in seconds (default: 5)
+}
+
+message EdgeResult {
+    string edge_id = 1;
+    int32 count = 2;
+    int32 classification = 3;
+}
+
+message EdgeResultList {
+    repeated EdgeResult results = 1;
+}
+
+message ForecastStreamUpdate {
+    bool success = 1;
+    string message = 2;
+    // Keys are horizon step indices ("0", "1", ...). Value is list of (edge_id, count, class) per horizon.
+    map<string, EdgeResultList> edge_results = 3;
+    // ISO 8601 datetime when this response/update is being returned.
+    string timestamp = 4;
+}
+
+service ForecastStreamService {
+    rpc StreamForecast(ForecastStreamRequest) returns (stream ForecastStreamUpdate);
+}
