@@ -28,16 +28,20 @@ type FlowFeatureCollection = {
 
 type BackgroundMapProps = {
   onSelectionChange?: (names: string[]) => void;
+  onEdgeSelect?: (edgeId: string | null) => void;
   clearSelectionToken?: number;
   flowFrame?: FlowFeatureCollection;
   selectionEnabled?: boolean;
+  selectedEdgeId?: string | null;
 };
 
 export default function BackgroundMap({
   onSelectionChange,
+  onEdgeSelect,
   clearSelectionToken,
   flowFrame,
   selectionEnabled = true,
+  selectedEdgeId,
 }: BackgroundMapProps) {
   const [map, setMap] = useState<mapboxgl.Map | null>(null);
   const camerasRef = useRef<CameraPoint[]>([]);
@@ -46,6 +50,8 @@ export default function BackgroundMap({
   const lastClearTokenRef = useRef<number | undefined>(undefined);
   const pendingFlowFrameRef = useRef<FlowFeatureCollection | null>(null);
   const selectionEnabledRef = useRef<boolean>(selectionEnabled);
+  const flowFrameRef = useRef<FlowFeatureCollection | null>(null);
+  const onEdgeSelectRef = useRef<BackgroundMapProps["onEdgeSelect"]>(onEdgeSelect);
 
   const parseCameraCsv = (csvText: string): CameraPoint[] => {
     const lines = csvText.split(/\r?\n/).filter((line) => line.trim().length > 0);
@@ -79,6 +85,48 @@ export default function BackgroundMap({
       cameras.push({ name, latitude, longitude });
     }
     return cameras;
+  };
+
+  const getPointDistanceSquared = (p: mapboxgl.Point, a: mapboxgl.Point, b: mapboxgl.Point) => {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    if (dx === 0 && dy === 0) {
+      const px = p.x - a.x;
+      const py = p.y - a.y;
+      return px * px + py * py;
+    }
+    const t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy);
+    const clamped = Math.max(0, Math.min(1, t));
+    const projX = a.x + clamped * dx;
+    const projY = a.y + clamped * dy;
+    const distX = p.x - projX;
+    const distY = p.y - projY;
+    return distX * distX + distY * distY;
+  };
+
+  const findNearestEdgeId = (
+    map: mapboxgl.Map,
+    clickPoint: mapboxgl.Point,
+    frame: FlowFeatureCollection
+  ) => {
+    let bestEdgeId: string | null = null;
+    let bestDistance = Number.POSITIVE_INFINITY;
+    for (const feature of frame.features) {
+      const coordinates = feature.geometry.coordinates;
+      if (!coordinates || coordinates.length < 2) {
+        continue;
+      }
+      for (let i = 0; i < coordinates.length - 1; i += 1) {
+        const start = map.project(coordinates[i]);
+        const end = map.project(coordinates[i + 1]);
+        const distance = getPointDistanceSquared(clickPoint, start, end);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          bestEdgeId = feature.properties.edge_id;
+        }
+      }
+    }
+    return bestEdgeId;
   };
 
   useEffect(() => {
@@ -201,7 +249,19 @@ export default function BackgroundMap({
       map.once("mouseout", finishSelection);
     };
 
+    const onMapClick = (e: mapboxgl.MapMouseEvent) => {
+      const frame = flowFrameRef.current;
+      if (!frame || frame.features.length === 0) {
+        return;
+      }
+      const edgeId = findNearestEdgeId(map, e.point, frame);
+      if (edgeId) {
+        onEdgeSelectRef.current?.(edgeId);
+      }
+    };
+
     map.on("mousedown", onMouseDown);
+    map.on("click", onMapClick);
 
     fetch("/sample_camera_edges/camera_node_mapping.csv")
       .then((res) => res.text())
@@ -272,6 +332,23 @@ export default function BackgroundMap({
         },
       });
 
+      map.addLayer({
+        id: 'flow_edges_selected_layer',
+        type: 'line',
+        source: 'flow_edges',
+        layout: {
+          'line-cap': 'round',
+          'line-join': 'round',
+        },
+        paint: {
+          'line-color': '#3b82f6',
+          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 4, 14, 7, 17, 10],
+          'line-opacity': 1,
+          'line-blur': 0.2,
+        },
+        filter: ["==", "edge_id", "__none__"],
+      });
+
       map.addSource('junctions', {
         type: 'geojson',
         generateId: true,
@@ -340,6 +417,7 @@ export default function BackgroundMap({
     return () => {
       map.off("mousedown", onMouseDown);
       map.off("mousemove", onMouseMove);
+      map.off("click", onMapClick);
       if (selectionBoxRef.current) {
         selectionBoxRef.current.remove();
         selectionBoxRef.current = null;
@@ -373,6 +451,14 @@ export default function BackgroundMap({
   }, [selectionEnabled]);
 
   useEffect(() => {
+    flowFrameRef.current = flowFrame ?? null;
+  }, [flowFrame]);
+
+  useEffect(() => {
+    onEdgeSelectRef.current = onEdgeSelect;
+  }, [onEdgeSelect]);
+
+  useEffect(() => {
     if (!map || !flowFrame) {
       return;
     }
@@ -383,6 +469,16 @@ export default function BackgroundMap({
     }
     source.setData(flowFrame);
   }, [map, flowFrame]);
+
+  useEffect(() => {
+    if (!map || !map.getLayer("flow_edges_selected_layer")) {
+      return;
+    }
+    const filter = selectedEdgeId
+      ? (["==", "edge_id", selectedEdgeId] as mapboxgl.Filter)
+      : (["==", "edge_id", "__none__"] as mapboxgl.Filter);
+    map.setFilter("flow_edges_selected_layer", filter);
+  }, [map, selectedEdgeId]);
 
   return (
     <div className="absolute inset-0 z-0">

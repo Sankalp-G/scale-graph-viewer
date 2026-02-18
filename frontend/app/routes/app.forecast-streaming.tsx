@@ -7,6 +7,7 @@ import SelectionCard from "~/welcome/components/selection-card";
 import {
   recordEdgeResults,
   resetEdgeResults,
+  type EdgeCountPoint,
   type EdgeResult,
 } from "~/stores/edge-results";
 import type { Route } from "./+types/app.forecast-streaming";
@@ -53,6 +54,8 @@ type FlowFrameMessage = {
 
 const joinUrl = (base: string, path: string) => `${base.replace(/\/$/, "")}${path}`;
 
+const MAX_POINTS = 180;
+
 const normalizeEdgeId = (edgeId: unknown) => {
   if (edgeId === null || edgeId === undefined) {
     return "";
@@ -67,6 +70,14 @@ const normalizeEdgeId = (edgeId: unknown) => {
   }
   return text;
 };
+
+const toNumber = (value: unknown) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const appendPoint = (points: EdgeCountPoint[], nextPoint: EdgeCountPoint) =>
+  [...points, nextPoint].slice(-MAX_POINTS);
 
 const buildFlowFrame = (
   edgeResults: EdgeResult[],
@@ -103,8 +114,11 @@ export default function App() {
   const [flowFrame, setFlowFrame] = useState<FlowFeatureCollection>(emptyFlowFrame);
   const [activeTimestamp, setActiveTimestamp] = useState<string | null>(null);
   const [selectedCameras, setSelectedCameras] = useState<string[]>([]);
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [selectedEdgePoints, setSelectedEdgePoints] = useState<EdgeCountPoint[]>([]);
   const geometryMapRef = useRef<Map<string, LineStringGeometry> | null>(null);
   const pendingEdgeResultsRef = useRef<EdgeResult[] | null>(null);
+  const edgeHistoryRef = useRef<Map<string, EdgeCountPoint[]>>(new Map());
 
   const apiBase = useMemo(
     () => import.meta.env.VITE_BACKEND_HTTP_URL ?? "http://localhost:8000",
@@ -139,8 +153,12 @@ export default function App() {
       setFlowFrame(emptyFlowFrame);
       setActiveTimestamp(null);
       resetEdgeResults();
+      edgeHistoryRef.current = new Map();
+      if (selectedEdgeId) {
+        setSelectedEdgePoints([]);
+      }
     }
-  }, [status]);
+  }, [status, selectedEdgeId]);
 
   useEffect(() => () => resetEdgeResults(), []);
 
@@ -193,6 +211,23 @@ export default function App() {
         const payload = JSON.parse(event.data) as FlowFrameMessage;
         if (payload.edge_results !== undefined) {
           recordEdgeResults(payload.edge_results, payload.timestamp);
+          const receivedAt = Date.now();
+          for (const result of payload.edge_results) {
+            const edgeId = normalizeEdgeId(result.edge_id);
+            if (!edgeId) {
+              continue;
+            }
+            const historyPoint: EdgeCountPoint = {
+              timestamp: payload.timestamp ?? null,
+              total: toNumber(result.count),
+              receivedAt,
+            };
+            const history = edgeHistoryRef.current.get(edgeId) ?? [];
+            edgeHistoryRef.current.set(edgeId, appendPoint(history, historyPoint));
+          }
+          if (selectedEdgeId) {
+            setSelectedEdgePoints(edgeHistoryRef.current.get(selectedEdgeId) ?? []);
+          }
           const geometryMap = geometryMapRef.current;
           if (geometryMap) {
             setFlowFrame(buildFlowFrame(payload.edge_results, geometryMap));
@@ -222,6 +257,14 @@ export default function App() {
       socket?.close();
     };
   }, [wsBase]);
+
+  useEffect(() => {
+    if (!selectedEdgeId) {
+      setSelectedEdgePoints([]);
+      return;
+    }
+    setSelectedEdgePoints(edgeHistoryRef.current.get(selectedEdgeId) ?? []);
+  }, [selectedEdgeId]);
 
   const handleStart = async () => {
     if (status === "inprogress") {
@@ -266,10 +309,33 @@ export default function App() {
         />
         <EdgeCountChart />
       </div>
+      {selectedEdgeId ? (
+        <div className="fixed right-6 top-6 z-10 flex w-full max-w-xs flex-col gap-3">
+          <div className="rounded-xl border bg-card text-card-foreground shadow-sm">
+            <div className="border-b px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Focused edge
+              </p>
+              <p className="mt-1 text-sm font-semibold text-foreground">
+                {selectedEdgeId}
+              </p>
+            </div>
+          </div>
+          <EdgeCountChart
+            title="Edge history"
+            points={selectedEdgePoints}
+            lineColor="#14b8a6"
+          />
+        </div>
+      ) : null}
       <BackgroundMap
         clearSelectionToken={clearSelectionToken}
         flowFrame={flowFrame}
         selectionEnabled={status !== "inprogress"}
+        selectedEdgeId={selectedEdgeId}
+        onEdgeSelect={(edgeId) => {
+          setSelectedEdgeId(edgeId);
+        }}
         onSelectionChange={(names) => {
           if (status !== "inprogress") {
             setSelectedCameras(names);

@@ -182,8 +182,17 @@ export default function App() {
   const [selectedCameras, setSelectedCameras] = useState<string[]>([]);
   const [nowcastingPoints, setNowcastingPoints] = useState<EdgeCountPoint[]>([]);
   const [forecastingPoints, setForecastingPoints] = useState<EdgeCountPoint[]>([]);
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [selectedNowcastingPoints, setSelectedNowcastingPoints] = useState<
+    EdgeCountPoint[]
+  >([]);
+  const [selectedForecastingPoints, setSelectedForecastingPoints] = useState<
+    EdgeCountPoint[]
+  >([]);
   const geometryMapRef = useRef<Map<string, LineStringGeometry> | null>(null);
   const pendingEdgeResultsRef = useRef<EdgeResult[] | null>(null);
+  const nowcastingEdgeHistoryRef = useRef<Map<string, EdgeCountPoint[]>>(new Map());
+  const forecastingEdgeHistoryRef = useRef<Map<string, EdgeCountPoint[]>>(new Map());
 
   const apiBase = useMemo(
     () => import.meta.env.VITE_BACKEND_HTTP_URL ?? "http://localhost:8000",
@@ -236,14 +245,22 @@ export default function App() {
     if (nowcastingStatus !== "inprogress") {
       setFlowFrame(emptyFlowFrame);
       setNowcastingPoints([]);
+      nowcastingEdgeHistoryRef.current = new Map();
+      if (selectedEdgeId) {
+        setSelectedNowcastingPoints([]);
+      }
     }
-  }, [nowcastingStatus]);
+  }, [nowcastingStatus, selectedEdgeId]);
 
   useEffect(() => {
     if (forecastingStatus !== "inprogress") {
       setForecastingPoints([]);
+      forecastingEdgeHistoryRef.current = new Map();
+      if (selectedEdgeId) {
+        setSelectedForecastingPoints([]);
+      }
     }
-  }, [forecastingStatus]);
+  }, [forecastingStatus, selectedEdgeId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -295,6 +312,25 @@ export default function App() {
         if (payload.edge_results !== undefined) {
           const point = buildCountPoint(payload.edge_results, payload.timestamp);
           setNowcastingPoints((prev) => appendPoint(prev, point));
+          const receivedAt = Date.now();
+          for (const result of payload.edge_results) {
+            const edgeId = normalizeEdgeId(result.edge_id);
+            if (!edgeId) {
+              continue;
+            }
+            const historyPoint: EdgeCountPoint = {
+              timestamp: payload.timestamp ?? null,
+              total: toNumber(result.count),
+              receivedAt,
+            };
+            const history = nowcastingEdgeHistoryRef.current.get(edgeId) ?? [];
+            nowcastingEdgeHistoryRef.current.set(edgeId, appendPoint(history, historyPoint));
+          }
+          if (selectedEdgeId) {
+            setSelectedNowcastingPoints(
+              nowcastingEdgeHistoryRef.current.get(selectedEdgeId) ?? []
+            );
+          }
           const geometryMap = geometryMapRef.current;
           if (geometryMap) {
             setFlowFrame(buildFlowFrame(payload.edge_results, geometryMap));
@@ -332,6 +368,25 @@ export default function App() {
         if (payload.edge_results !== undefined) {
           const point = buildCountPoint(payload.edge_results, payload.timestamp);
           setForecastingPoints((prev) => appendPoint(prev, point));
+          const receivedAt = Date.now();
+          for (const result of payload.edge_results) {
+            const edgeId = normalizeEdgeId(result.edge_id);
+            if (!edgeId) {
+              continue;
+            }
+            const historyPoint: EdgeCountPoint = {
+              timestamp: payload.timestamp ?? null,
+              total: toNumber(result.count),
+              receivedAt,
+            };
+            const history = forecastingEdgeHistoryRef.current.get(edgeId) ?? [];
+            forecastingEdgeHistoryRef.current.set(edgeId, appendPoint(history, historyPoint));
+          }
+          if (selectedEdgeId) {
+            setSelectedForecastingPoints(
+              forecastingEdgeHistoryRef.current.get(selectedEdgeId) ?? []
+            );
+          }
         }
       } catch (error) {
         console.error("Failed to parse forecast frame message", error);
@@ -350,6 +405,20 @@ export default function App() {
       socket?.close();
     };
   }, [wsBase]);
+
+  useEffect(() => {
+    if (!selectedEdgeId) {
+      setSelectedNowcastingPoints([]);
+      setSelectedForecastingPoints([]);
+      return;
+    }
+    setSelectedNowcastingPoints(
+      nowcastingEdgeHistoryRef.current.get(selectedEdgeId) ?? []
+    );
+    setSelectedForecastingPoints(
+      forecastingEdgeHistoryRef.current.get(selectedEdgeId) ?? []
+    );
+  }, [selectedEdgeId]);
 
   const handleStart = async () => {
     if (nowcastingStatus === "inprogress" || forecastingStatus === "inprogress") {
@@ -389,13 +458,23 @@ export default function App() {
     nowcastingStatus === "inprogress" || forecastingStatus === "inprogress"
       ? "inprogress"
       : "idle";
+  const displayedNowcastingPoints = selectedEdgeId
+    ? selectedNowcastingPoints
+    : nowcastingPoints;
+  const displayedForecastingPoints = selectedEdgeId
+    ? selectedForecastingPoints
+    : forecastingPoints;
   const activeTimestamp = useMemo(
-    () => getLatestTimestamp(nowcastingPoints, forecastingPoints),
-    [nowcastingPoints, forecastingPoints]
+    () => getLatestTimestamp(displayedNowcastingPoints, displayedForecastingPoints),
+    [displayedNowcastingPoints, displayedForecastingPoints]
   );
   const timeRange = useMemo(
-    () => buildTimeRange(nowcastingPoints, forecastingPoints),
-    [nowcastingPoints, forecastingPoints]
+    () => buildTimeRange(displayedNowcastingPoints, displayedForecastingPoints),
+    [displayedNowcastingPoints, displayedForecastingPoints]
+  );
+  const selectedTimeRange = useMemo(
+    () => buildTimeRange(selectedNowcastingPoints, selectedForecastingPoints),
+    [selectedNowcastingPoints, selectedForecastingPoints]
   );
 
   return (
@@ -419,21 +498,51 @@ export default function App() {
         />
         <EdgeCountChart
           title="Nowcasting"
-          points={nowcastingPoints}
+          points={displayedNowcastingPoints}
           timeRange={timeRange ?? undefined}
           lineColor="#2563eb"
         />
         <EdgeCountChart
           title="Forecasting"
-          points={forecastingPoints}
+          points={displayedForecastingPoints}
           timeRange={timeRange ?? undefined}
           lineColor="#14b8a6"
         />
       </div>
+      {selectedEdgeId ? (
+        <div className="fixed right-6 top-6 z-10 flex w-full max-w-xs flex-col gap-3">
+          <div className="rounded-xl border bg-card text-card-foreground shadow-sm">
+            <div className="border-b px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Focused edge
+              </p>
+              <p className="mt-1 text-sm font-semibold text-foreground">
+                {selectedEdgeId}
+              </p>
+            </div>
+          </div>
+          <EdgeCountChart
+            title="Edge nowcasting"
+            points={selectedNowcastingPoints}
+            timeRange={selectedTimeRange ?? undefined}
+            lineColor="#2563eb"
+          />
+          <EdgeCountChart
+            title="Edge forecasting"
+            points={selectedForecastingPoints}
+            timeRange={selectedTimeRange ?? undefined}
+            lineColor="#14b8a6"
+          />
+        </div>
+      ) : null}
       <BackgroundMap
         clearSelectionToken={clearSelectionToken}
         flowFrame={flowFrame}
         selectionEnabled={combinedStatus !== "inprogress"}
+        selectedEdgeId={selectedEdgeId}
+        onEdgeSelect={(edgeId) => {
+          setSelectedEdgeId(edgeId);
+        }}
         onSelectionChange={(names) => {
           if (combinedStatus !== "inprogress") {
             setSelectedCameras(names);
