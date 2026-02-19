@@ -32,6 +32,20 @@ def parse_value(raw: str) -> Union[float, int]:
     return value
 
 
+LOW_CLASS_THRESHOLD = 23
+HIGH_CLASS_THRESHOLD = 69
+
+
+def classify_count(value: Union[float, int, None]) -> int:
+    if value is None:
+        return 0
+    if value < LOW_CLASS_THRESHOLD:
+        return 0
+    if value <= HIGH_CLASS_THRESHOLD:
+        return 1
+    return 2
+
+
 def load_flow_csv(path: Path) -> Tuple[List[str], List[Tuple[str, List[Union[float, int]]]]]:
     with path.open(newline="") as handle:
         reader = csv.reader(handle)
@@ -97,11 +111,12 @@ class FlowStore:
         results: List[Dict[str, int]] = []
         for edge_id, values in self.rows:
             value = values[index] if index < len(values) else 0
-            classification = int(value) if value is not None else 0
+            count = int(value) if value is not None else 0
+            classification = classify_count(value)
             results.append(
                 {
                     "edge_id": edge_id,
-                    "count": classification,
+                    "count": count,
                     "classification": classification,
                 }
             )
@@ -109,6 +124,6 @@ class FlowStore:
 
 
 def load_flow_store(data_dir: Path) -> FlowStore:
-    timestamps, rows = load_flow_csv(data_dir / "edge_flow_component_classes.csv")
+    timestamps, rows = load_flow_csv(data_dir / "edge_counts_history.csv")
     geometry_map = load_geometry_map(data_dir / "edges_non_internal.geojson")
     return FlowStore(timestamps, rows, geometry_map)

@@ -5,8 +5,6 @@ import EdgeCountChart from "~/components/edge-count-chart";
 import ExperimentCard from "~/welcome/components/experiment-card";
 import SelectionCard from "~/welcome/components/selection-card";
 import {
-  recordEdgeResults,
-  resetEdgeResults,
   type EdgeCountPoint,
   type EdgeResult,
 } from "~/stores/edge-results";
@@ -79,6 +77,38 @@ const toNumber = (value: unknown) => {
 const appendPoint = (points: EdgeCountPoint[], nextPoint: EdgeCountPoint) =>
   [...points, nextPoint].slice(-MAX_POINTS);
 
+const getPointTimeMs = (point: EdgeCountPoint) => {
+  if (!point.timestamp) {
+    return Number.NaN;
+  }
+  const parsed = Date.parse(point.timestamp);
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
+};
+
+const buildTimeRange = (
+  nowcastingPoints: EdgeCountPoint[],
+  forecastingPoints: EdgeCountPoint[]
+) => {
+  let minTime = Number.POSITIVE_INFINITY;
+  let maxTime = Number.NEGATIVE_INFINITY;
+  const visit = (points: EdgeCountPoint[]) => {
+    for (const point of points) {
+      const time = getPointTimeMs(point);
+      if (!Number.isFinite(time)) {
+        continue;
+      }
+      minTime = Math.min(minTime, time);
+      maxTime = Math.max(maxTime, time);
+    }
+  };
+  visit(nowcastingPoints);
+  visit(forecastingPoints);
+  if (!Number.isFinite(minTime) || !Number.isFinite(maxTime)) {
+    return null;
+  }
+  return { startMs: minTime, endMs: maxTime };
+};
+
 const buildFlowFrame = (
   edgeResults: EdgeResult[],
   geometryMap: Map<string, LineStringGeometry>
@@ -114,11 +144,19 @@ export default function App() {
   const [flowFrame, setFlowFrame] = useState<FlowFeatureCollection>(emptyFlowFrame);
   const [activeTimestamp, setActiveTimestamp] = useState<string | null>(null);
   const [selectedCameras, setSelectedCameras] = useState<string[]>([]);
+  const [nowcastingPoints, setNowcastingPoints] = useState<EdgeCountPoint[]>([]);
+  const [forecastingPoints, setForecastingPoints] = useState<EdgeCountPoint[]>([]);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
-  const [selectedEdgePoints, setSelectedEdgePoints] = useState<EdgeCountPoint[]>([]);
+  const [selectedNowcastingPoints, setSelectedNowcastingPoints] = useState<
+    EdgeCountPoint[]
+  >([]);
+  const [selectedForecastingPoints, setSelectedForecastingPoints] = useState<
+    EdgeCountPoint[]
+  >([]);
   const geometryMapRef = useRef<Map<string, LineStringGeometry> | null>(null);
   const pendingEdgeResultsRef = useRef<EdgeResult[] | null>(null);
-  const edgeHistoryRef = useRef<Map<string, EdgeCountPoint[]>>(new Map());
+  const nowcastingEdgeHistoryRef = useRef<Map<string, EdgeCountPoint[]>>(new Map());
+  const forecastingEdgeHistoryRef = useRef<Map<string, EdgeCountPoint[]>>(new Map());
 
   const apiBase = useMemo(
     () => import.meta.env.VITE_BACKEND_HTTP_URL ?? "http://localhost:8000",
@@ -152,15 +190,16 @@ export default function App() {
     if (status !== "inprogress") {
       setFlowFrame(emptyFlowFrame);
       setActiveTimestamp(null);
-      resetEdgeResults();
-      edgeHistoryRef.current = new Map();
+      setNowcastingPoints([]);
+      setForecastingPoints([]);
+      nowcastingEdgeHistoryRef.current = new Map();
+      forecastingEdgeHistoryRef.current = new Map();
       if (selectedEdgeId) {
-        setSelectedEdgePoints([]);
+        setSelectedNowcastingPoints([]);
+        setSelectedForecastingPoints([]);
       }
     }
   }, [status, selectedEdgeId]);
-
-  useEffect(() => () => resetEdgeResults(), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -210,23 +249,53 @@ export default function App() {
       try {
         const payload = JSON.parse(event.data) as FlowFrameMessage;
         if (payload.edge_results !== undefined) {
-          recordEdgeResults(payload.edge_results, payload.timestamp);
           const receivedAt = Date.now();
+          const timestamp = payload.timestamp ?? null;
+          let nowcastingTotal = 0;
+          let forecastingTotal = 0;
           for (const result of payload.edge_results) {
             const edgeId = normalizeEdgeId(result.edge_id);
             if (!edgeId) {
               continue;
             }
-            const historyPoint: EdgeCountPoint = {
-              timestamp: payload.timestamp ?? null,
-              total: toNumber(result.count),
+            const baseCount = toNumber(result.count);
+            nowcastingTotal += baseCount;
+            const forecastCount = Math.max(
+              0,
+              Math.round(baseCount * (1 + (Math.random() * 0.8 - 0.4)))
+            );
+            forecastingTotal += forecastCount;
+            const nowHistoryPoint: EdgeCountPoint = {
+              timestamp,
+              total: baseCount,
               receivedAt,
             };
-            const history = edgeHistoryRef.current.get(edgeId) ?? [];
-            edgeHistoryRef.current.set(edgeId, appendPoint(history, historyPoint));
+            const forecastHistoryPoint: EdgeCountPoint = {
+              timestamp,
+              total: forecastCount,
+              receivedAt,
+            };
+            const nowHistory = nowcastingEdgeHistoryRef.current.get(edgeId) ?? [];
+            nowcastingEdgeHistoryRef.current.set(edgeId, appendPoint(nowHistory, nowHistoryPoint));
+            const forecastHistory = forecastingEdgeHistoryRef.current.get(edgeId) ?? [];
+            forecastingEdgeHistoryRef.current.set(
+              edgeId,
+              appendPoint(forecastHistory, forecastHistoryPoint)
+            );
           }
+          setNowcastingPoints((prev) =>
+            appendPoint(prev, { timestamp, total: nowcastingTotal, receivedAt })
+          );
+          setForecastingPoints((prev) =>
+            appendPoint(prev, { timestamp, total: forecastingTotal, receivedAt })
+          );
           if (selectedEdgeId) {
-            setSelectedEdgePoints(edgeHistoryRef.current.get(selectedEdgeId) ?? []);
+            setSelectedNowcastingPoints(
+              nowcastingEdgeHistoryRef.current.get(selectedEdgeId) ?? []
+            );
+            setSelectedForecastingPoints(
+              forecastingEdgeHistoryRef.current.get(selectedEdgeId) ?? []
+            );
           }
           const geometryMap = geometryMapRef.current;
           if (geometryMap) {
@@ -260,10 +329,16 @@ export default function App() {
 
   useEffect(() => {
     if (!selectedEdgeId) {
-      setSelectedEdgePoints([]);
+      setSelectedNowcastingPoints([]);
+      setSelectedForecastingPoints([]);
       return;
     }
-    setSelectedEdgePoints(edgeHistoryRef.current.get(selectedEdgeId) ?? []);
+    setSelectedNowcastingPoints(
+      nowcastingEdgeHistoryRef.current.get(selectedEdgeId) ?? []
+    );
+    setSelectedForecastingPoints(
+      forecastingEdgeHistoryRef.current.get(selectedEdgeId) ?? []
+    );
   }, [selectedEdgeId]);
 
   const handleStart = async () => {
@@ -280,6 +355,15 @@ export default function App() {
       console.error("Failed to start stream", error);
     }
   };
+
+  const timeRange = useMemo(
+    () => buildTimeRange(nowcastingPoints, forecastingPoints),
+    [nowcastingPoints, forecastingPoints]
+  );
+  const selectedTimeRange = useMemo(
+    () => buildTimeRange(selectedNowcastingPoints, selectedForecastingPoints),
+    [selectedNowcastingPoints, selectedForecastingPoints]
+  );
 
   return (
     <main className="relative min-h-screen text-black bg-transparent">
@@ -300,7 +384,18 @@ export default function App() {
             setSelectedCameras([]);
           }}
         />
-        <EdgeCountChart />
+        <EdgeCountChart
+          title="Nowcasting"
+          points={nowcastingPoints}
+          timeRange={timeRange ?? undefined}
+          lineColor="#2563eb"
+        />
+        <EdgeCountChart
+          title="Forecasting"
+          points={forecastingPoints}
+          timeRange={timeRange ?? undefined}
+          lineColor="#14b8a6"
+        />
       </div>
       {selectedEdgeId ? (
         <div className="fixed right-6 top-6 z-10 flex w-full max-w-xs flex-col gap-3">
@@ -315,9 +410,16 @@ export default function App() {
             </div>
           </div>
           <EdgeCountChart
-            title="Edge history"
-            points={selectedEdgePoints}
+            title="Edge nowcasting"
+            points={selectedNowcastingPoints}
+            timeRange={selectedTimeRange ?? undefined}
             lineColor="#2563eb"
+          />
+          <EdgeCountChart
+            title="Edge forecasting"
+            points={selectedForecastingPoints}
+            timeRange={selectedTimeRange ?? undefined}
+            lineColor="#14b8a6"
           />
         </div>
       ) : null}
